@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+
+<html lang="zh-TW">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>台語文言音查詢</title>
+
+    <style>
+
+        body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
+
+        input { width: 70%; padding: 10px; font-size: 16px; }
+
+        button { padding: 10px 15px; font-size: 16px; cursor: pointer; }
+
+        .card { border: 1px solid #ccc; padding: 12px; margin-top: 10px; border-radius: 8px; background: #f9f9f9; }
+
+    </style>
+
+</head>
+
+<body>
+
+    <h2>台語文言音查詢</h2>
+
+    <input type="text" id="textInput" placeholder="請輸入漢字（如：我人生學）">
+
+    <button onclick="search()">查詢</button>
+
+    <div id="result"></div>
+
+
+    <script>
+
+        // 1. 將 Python 字典轉為 JS 資料庫
+
+        const DB = {
+
+            "我": { romaji: "ngo", tone: 5, example: "自我 (chū-ngo5)、無我 (bû-ngo5)" },
+
+            "人": { romaji: "jîn / lîn", tone: 5, example: "人生 (jîn-sing)、人民 (jîn-bîn)" },
+
+            "大": { romaji: "tāi", tone: 1, example: "大學 (tāi-hák)、大眾 (tāi-chiòng)" },
+
+            "女": { romaji: "nó / lú", tone: 2, example: "女性 (nó-sèng)、女性 (lú-sèng)" },
+
+            "子": { romaji: "chú", tone: 2, example: "君子 (kun-chú)、子孫 (chú-sun)" },
+
+            "日": { romaji: "jit", tone: 8, example: "日常 (jit-siông)、日本 (Jit-pún)" },
+
+            "月": { romaji: "geȧt", tone: 8, example: "歲月 (sòe-geȧt)、日月 (jit-geȧt)" },
+
+            "學": { romaji: "hȧk", tone: 8, example: "學校 (hȧk-hāu)、學生 (hȧk-sing)" },
+
+            "生": { romaji: "sing", tone: 1, example: "生活 (sing-oȧh)、生命 (sing-mīng)" },
+
+            "中": { romaji: "tiong", tone: 1, example: "中心 (tiong-sim)、中國 (tiong-kok)" }
+
+        };
+
+
+        // 2. 查詢邏輯
+
+        function search() {
+
+            const text = document.getElementById("textInput").value;
+
+            const resultDiv = document.getElementById("result");
+
+            resultDiv.innerHTML = ""; // 清空舊結果
+
+
+            for (let char of text) {
+
+                if (!char.trim()) continue; // 忽略空格
+
+
+                if (DB[char]) {
+
+                    const item = DB[char];
+
+                    resultDiv.innerHTML += `
+
+                        <div class="card">
+
+                            <strong>漢字：『${char}』</strong><br>
+
+                            ├─ 文言音（文讀）：${item.romaji}${item.tone}<br>
+
+                            └─ 示範詞彙：${item.example}
+
+                        </div>`;
+
+                } else {
+
+                    resultDiv.innerHTML += `
+
+                        <div class="card">
+
+                            <strong>漢字：『${char}』</strong><br>
+
+                            └─ 提示：資料庫暫無此字之文讀紀錄。
+
+                        </div>`;
+
+                }
+
+            }
+
+        }
+
+    </script>
+
+</body>
+
+</html>
