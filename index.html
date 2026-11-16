@@ -21,6 +21,7 @@
         .card { border: 1px solid #ccc; padding: 12px; margin-top: 10px; border-radius: 8px; background: #f9f9f9; }
 
     </style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 
 </head>
 
@@ -115,6 +116,96 @@
         }
 
     </script>
+20261116臺語資料庫結合手機程式 輸入框 查詢漢字文白音 程式碼研究（摘錄）
+，與#Gemini 的新對話--
+在純靜態網頁（如 GitHub Pages）中讀取 SQLite 資料庫（taigi.db），
+需透過 sql.js 函式庫搭配 JavaScript 的 fetch() 指令來載入並查詢資料庫。
+​完整的核心讀取與查詢程式碼範例如下（可直接放入 index.html 的 <script> 區塊中）：
+​1. 引入 sql.js 函式庫
+​在 HTML 的 <head> 標籤內加入 CDN 連結，讓瀏覽器具備解析 .db 檔的能力：
+html
+<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
+
+2. 讀取 taigi.db 並執行查詢的核心指令
+javascript
+    <script>
+async function loadAndQueryDB(searchWord) {
+  // 1. 初始化 SQL.js 引擎
+  const SQL = await initSqlJs({
+    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+  });
+
+  // 2. 使用 fetch() 指令從 GitHub 同目錄讀取 taigi.db 檔案
+  const response = await fetch('./taigi.db');
+  if (!response.ok) {
+    console.error('找不到 taigi.db，狀態碼：', response.status);
+    return;
+  }
+
+  // 3. 將下載的二進位資料載入資料庫物件
+  const buffer = await response.arrayBuffer();
+  const db = new SQL.Database(new Uint8Array(buffer));
+
+  // 4. 執行 SQL 查詢語法（資料表與欄位名稱需依您的 taigi.db 結構調整）改dict爲words
+  const stmt = db.prepare("SELECT * FROM words WHERE hanzi = :word");
+  stmt.bind({ ':word': searchWord });
+
+  while (stmt.step()) {
+    const row = stmt.getAsObject();
+    console.log('查詢結果：', row); // 可在此處將結果渲染到網頁畫面上
+  }
+  stmt.free();
+}
+
+// 呼叫範例：查詢「我」
+loadAndQueryDB('我');
+
+db.prepare("SELECT
+':word': searchWor...
+
+step()) {
+|動變成一個包含所有欄位|
+id: 1, hanzi: "我",
+= stmt.getAsObject(
+
+迴圈印出所有欄位與對應的
+[columnName, value
+log(`${columnName}:
+    </script>
+
+實作與除錯重點
+
+​檔案位置：taigi.db 必須上傳到 GitHub 專案的根目錄（與 index.html 放在同一層）
+，fetch('./taigi.db') 才能正確抓取。 
+
+​欄位名稱對應：上述範例中的資料表名稱 dict 與欄位名稱 hanzi，需替換成您建立
+ taigi.db 時實際設定的資料表(words)與欄位(?)名稱。 
+
+​檔案大小限制：由於瀏覽器必須將整個 .db 檔下載至記憶體才能查詢，建議將 taigi.db
+ 控制在 10MB～20MB 以內，以確保手機與電腦載入流暢。 
+……
+新對話(與#Gemini)20261116
+
+
+​（臺語資料庫taigi.db）全部十幾個欄位
+
+若您希望把該筆資料的所有欄位全部抓出來動態運用，可以使用 SELECT *：
+程式碼區塊（javascript）：
+javascript
+db.prepare("SELECT
+':word': searchWor...
+
+step()) {
+|動變成一個包含所有欄位|
+id: 1, hanzi: "我",
+= stmt.getAsObject(
+
+迴圈印出所有欄位與對應的
+[columnName, value
+log(`${columnName}:
+
+
+
 
 </body>
 
