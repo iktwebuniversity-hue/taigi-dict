@@ -1,212 +1,106 @@
 <!DOCTYPE html>
-
 <html lang="zh-TW">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>台語文言音查詢</title>
-
     <style>
-
         body { font-family: sans-serif; padding: 20px; max-width: 500px; margin: auto; }
-
         input { width: 70%; padding: 10px; font-size: 16px; }
-
         button { padding: 10px 15px; font-size: 16px; cursor: pointer; }
-
         .card { border: 1px solid #ccc; padding: 12px; margin-top: 10px; border-radius: 8px; background: #f9f9f9; }
-
     </style>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-
+    <!-- 引入 sql.js 函式庫 CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
 </head>
-
 <body>
 
     <h2>台語文言音查詢</h2>
-
     <input type="text" id="textInput" placeholder="請輸入漢字（如：我人生學）">
-
     <button onclick="search()">查詢</button>
-
     <div id="result"></div>
 
-
     <script>
+        let db = null;
 
-        // 1. 將 Python 字典轉為 JS 資料庫
-
-        const DB = {
-
-            "我": { romaji: "ngo", tone: 5, example: "自我 (chū-ngo5)、無我 (bû-ngo5)" },
-
-            "人": { romaji: "jîn / lîn", tone: 5, example: "人生 (jîn-sing)、人民 (jîn-bîn)" },
-
-            "大": { romaji: "tāi", tone: 1, example: "大學 (tāi-hák)、大眾 (tāi-chiòng)" },
-
-            "女": { romaji: "nó / lú", tone: 2, example: "女性 (nó-sèng)、女性 (lú-sèng)" },
-
-            "子": { romaji: "chú", tone: 2, example: "君子 (kun-chú)、子孫 (chú-sun)" },
-
-            "日": { romaji: "jit", tone: 8, example: "日常 (jit-siông)、日本 (Jit-pún)" },
-
-            "月": { romaji: "geȧt", tone: 8, example: "歲月 (sòe-geȧt)、日月 (jit-geȧt)" },
-
-            "學": { romaji: "hȧk", tone: 8, example: "學校 (hȧk-hāu)、學生 (hȧk-sing)" },
-
-            "生": { romaji: "sing", tone: 1, example: "生活 (sing-oȧh)、生命 (sing-mīng)" },
-
-            "中": { romaji: "tiong", tone: 1, example: "中心 (tiong-sim)、中國 (tiong-kok)" }
-
-        };
-
-
-        // 2. 查詢邏輯
-
-        function search() {
-
-            const text = document.getElementById("textInput").value;
-
-            const resultDiv = document.getElementById("result");
-
-            resultDiv.innerHTML = ""; // 清空舊結果
-
-
-            for (let char of text) {
-
-                if (!char.trim()) continue; // 忽略空格
-
-
-                if (DB[char]) {
-
-                    const item = DB[char];
-
-                    resultDiv.innerHTML += `
-
-                        <div class="card">
-
-                            <strong>漢字：『${char}』</strong><br>
-
-                            ├─ 文言音（文讀）：${item.romaji}${item.tone}<br>
-
-                            └─ 示範詞彙：${item.example}
-
-                        </div>`;
-
-                } else {
-
-                    resultDiv.innerHTML += `
-
-                        <div class="card">
-
-                            <strong>漢字：『${char}』</strong><br>
-
-                            └─ 提示：資料庫暫無此字之文讀紀錄。
-
-                        </div>`;
-
-                }
-
+        // 1. 初始化並載入 SQLite 資料庫
+        async function initDB() {
+            if (db) return db;
+            try {
+                const SQL = await initSqlJs({
+                    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
+                });
+                const response = await fetch('./taigi.db');
+                if (!response.ok) throw new Error(`找不到 taigi.db，狀態碼：${response.status}`);
+                
+                const buffer = await response.arrayBuffer();
+                db = new SQL.Database(new Uint8Array(buffer));
+                return db;
+            } catch (error) {
+                console.error('資料庫載入失敗：', error);
+                document.getElementById("result").innerHTML = `<div class="card" style="color:red;">資料庫載入失敗，請確認 taigi.db 是否與網頁放在同一目錄。</div>`;
+                return null;
             }
-
         }
 
+        // 2. 查詢邏輯
+        async function search() {
+            const text = document.getElementById("textInput").value;
+            const resultDiv = document.getElementById("result");
+            resultDiv.innerHTML = "查詢中...";
+
+            const database = await initDB();
+            if (!database) return;
+
+            resultDiv.innerHTML = ""; // 清空提示
+
+            if (!text.trim()) {
+                resultDiv.innerHTML = `<div class="card">請輸入要查詢的漢字。</div>`;
+                return;
+            }
+
+            // 逐字查詢
+            for (let char of text) {
+                if (!char.trim()) continue; // 忽略空格
+
+                try {
+                    // 假設資料表名稱為 words，欄位為 hanzi（請依實際資料庫結構調整）
+                    const stmt = database.prepare("SELECT * FROM words WHERE hanzi = :word");
+                    stmt.bind({ ':word': char });
+
+                    let found = false;
+                    while (stmt.step()) {
+                        found = true;
+                        const row = stmt.getAsObject(); // 取得包含所有欄位建物件
+                        
+                        // 動態拼出所有欄位與對應的值
+                        let fieldsHtml = "";
+                        for (let [columnName, value] of Object.entries(row)) {
+                            if (columnName !== 'hanzi') {
+                                fieldsHtml += `&nbsp;&nbsp;&nbsp;&nbsp;├─ ${columnName}：${value}<br>`;
+                            }
+                        }
+
+                        resultDiv.innerHTML += `
+                            <div class="card">
+                                <strong>漢字：『${char}』</strong><br>
+                                ${fieldsHtml}
+                            </div>`;
+                    }
+                    stmt.free();
+
+                    if (!found) {
+                        resultDiv.innerHTML += `
+                            <div class="card">
+                                <strong>漢字：『${char}』</strong><br>
+                                └─ 提示：資料庫暫無此字之紀錄。
+                            </div>`;
+                    }
+                } catch (err) {
+                    console.error(`查詢字「${char}」時發生錯誤：`, err);
+                }
+            }
+        }
     </script>
-20261116臺語資料庫結合手機程式 輸入框 查詢漢字文白音 程式碼研究（摘錄）
-，與#Gemini 的新對話--
-在純靜態網頁（如 GitHub Pages）中讀取 SQLite 資料庫（taigi.db），
-需透過 sql.js 函式庫搭配 JavaScript 的 fetch() 指令來載入並查詢資料庫。
-​完整的核心讀取與查詢程式碼範例如下（可直接放入 index.html 的 <script> 區塊中）：
-​1. 引入 sql.js 函式庫
-​在 HTML 的 <head> 標籤內加入 CDN 連結，讓瀏覽器具備解析 .db 檔的能力：
-html
-<script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/sql-wasm.js"></script>
-
-2. 讀取 taigi.db 並執行查詢的核心指令
-javascript
-    <script>
-async function loadAndQueryDB(searchWord) {
-  // 1. 初始化 SQL.js 引擎
-  const SQL = await initSqlJs({
-    locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.10.3/${file}`
-  });
-
-  // 2. 使用 fetch() 指令從 GitHub 同目錄讀取 taigi.db 檔案
-  const response = await fetch('./taigi.db');
-  if (!response.ok) {
-    console.error('找不到 taigi.db，狀態碼：', response.status);
-    return;
-  }
-
-  // 3. 將下載的二進位資料載入資料庫物件
-  const buffer = await response.arrayBuffer();
-  const db = new SQL.Database(new Uint8Array(buffer));
-
-  // 4. 執行 SQL 查詢語法（資料表與欄位名稱需依您的 taigi.db 結構調整）改dict爲words
-  const stmt = db.prepare("SELECT * FROM words WHERE hanzi = :word");
-  stmt.bind({ ':word': searchWord });
-
-  while (stmt.step()) {
-    const row = stmt.getAsObject();
-    console.log('查詢結果：', row); // 可在此處將結果渲染到網頁畫面上
-  }
-  stmt.free();
-}
-
-// 呼叫範例：查詢「我」
-loadAndQueryDB('我');
-
-db.prepare("SELECT
-':word': searchWor...
-
-step()) {
-|動變成一個包含所有欄位|
-id: 1, hanzi: "我",
-= stmt.getAsObject(
-
-迴圈印出所有欄位與對應的
-[columnName, value
-log(`${columnName}:
-    </script>
-
-實作與除錯重點
-
-​檔案位置：taigi.db 必須上傳到 GitHub 專案的根目錄（與 index.html 放在同一層）
-，fetch('./taigi.db') 才能正確抓取。 
-
-​欄位名稱對應：上述範例中的資料表名稱 dict 與欄位名稱 hanzi，需替換成您建立
- taigi.db 時實際設定的資料表(words)與欄位(?)名稱。 
-
-​檔案大小限制：由於瀏覽器必須將整個 .db 檔下載至記憶體才能查詢，建議將 taigi.db
- 控制在 10MB～20MB 以內，以確保手機與電腦載入流暢。 
-……
-新對話(與#Gemini)20261116
-
-
-​（臺語資料庫taigi.db）全部十幾個欄位
-
-若您希望把該筆資料的所有欄位全部抓出來動態運用，可以使用 SELECT *：
-程式碼區塊（javascript）：
-javascript
-db.prepare("SELECT
-':word': searchWor...
-
-step()) {
-|動變成一個包含所有欄位|
-id: 1, hanzi: "我",
-= stmt.getAsObject(
-
-迴圈印出所有欄位與對應的
-[columnName, value
-log(`${columnName}:
-
-
-
-
 </body>
-
 </html>
